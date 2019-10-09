@@ -7,6 +7,7 @@ public class Semantic{
 	private HashMap<String,AST.class_> classMap;
 	private ArrayList<String> allClsNames, lateDeclared;
 	private HashMap<String, ArrayList<String>> inherGraph;
+	private ScopeTable<AST.ASTNode> scopeTable;
 
 	public void reportError(String filename, int lineNo, String error){
 		errorFlag = true;
@@ -25,9 +26,10 @@ public class Semantic{
 		allClsNames = new ArrayList<String>();
 		lateDeclared = new ArrayList<String>();
 		inherGraph = new HashMap<String, ArrayList<String>>();
+		scopeTable = new ScopeTable<AST.ASTNode>();
 
 		AST.class_ IO = new AST.class_("IO", "", "", new ArrayList<AST.feature>(Arrays.asList(
-			(AST.feature) new AST.method("out_string", new ArrayList<AST.formal>(Arrays.asList(new AST.formal("x", "String", 0))), "SELF_TYPE",(AST.expression) new AST.no_expr(0), 0),
+			new AST.method("out_string", new ArrayList<AST.formal>(Arrays.asList(new AST.formal("x", "String", 0))), "SELF_TYPE",(AST.expression) new AST.no_expr(0), 0),
 			(AST.feature) new AST.method("out_int", new ArrayList<AST.formal>(Arrays.asList(new AST.formal("x", "Int", 0))), "SELF_TYPE",(AST.expression) new AST.no_expr(0), 0),
 			(AST.feature) new AST.method("in_string", new ArrayList<AST.formal>(), "String",(AST.expression) new AST.no_expr(0), 0),
 			(AST.feature) new AST.method("in_int", new ArrayList<AST.formal>(), "Int",(AST.expression) new AST.no_expr(0), 0)
@@ -39,6 +41,10 @@ public class Semantic{
 			(AST.feature) new AST.method("copy", new ArrayList<AST.formal>(), "SELF_TYPE",(AST.expression) new AST.no_expr(0), 0)
 		)), 0);
 
+		AST.class_ Int = new AST.class_("Int", "", "", new ArrayList<AST.feature>(), 0);
+		AST.class_ Bool = new AST.class_("Bool", "", "", new ArrayList<AST.feature>(), 0);
+		AST.class_ String = new AST.class_("String", "", "", new ArrayList<AST.feature>(), 0);
+
 		allClsNames.add(IO.name);
 		classMap.put(IO.name, IO);
 		allClsNames.add(Object.name);
@@ -49,6 +55,9 @@ public class Semantic{
 			if(allClsNames.contains(cl.name)){
 				reportError(cl.filename, cl.lineNo, "Class "+cl.name+" was previously defined\n");
 				continue;
+			}
+			if(cl.parent.equals("Int")||cl.parent.equals("String")||cl.parent.equals("Bool")){
+				reportError(cl.filename, cl.lineNo, "Class "+cl.name+" cannot inherit from "+cl.parent+"\n");
 			}
 			allClsNames.add(cl.name);
 			classMap.put(cl.name, cl);
@@ -81,12 +90,28 @@ public class Semantic{
 		}
 
 		allClsNames.removeAll(Arrays.asList("IO","Object"));
+		classMap.put("Int",Int);
+		classMap.put("Bool",Bool);
+		classMap.put("String",String);
 		for(String cln: allClsNames){
-			System.out.println(cln);
 			AST.class_ cl = classMap.get(cln), cpl = classMap.get(cl.parent);
 			String err = cl.addParFeats(cpl.methods, cpl.attrs);
 			if(!err.equals("")) reportError(cl.filename, cl.lineNo, err);
-		}
+			scopeTable.insert(cl.name, (AST.ASTNode) cl);
+			scopeTable.enterScope();
+			scopeTable.insert("self", (AST.ASTNode) cl);
+				for(AST.attr a: cl.attrs)  scopeTable.insert(a.name, (AST.ASTNode) a);
+				for(AST.method m: cl.methods){
+					scopeTable.insert(m.name, (AST.ASTNode) m);
+					scopeTable.enterScope();
+					for(AST.formal f: m.formals) scopeTable.insert(f.name, (AST.ASTNode) f);
+					String errbody = m.body.setType(cl.filename+":",scopeTable, classMap);
+					System.out.print(errbody);
+					if(!m.body.type.equals("_no_type") && (!m.body.type.equals(m.typeid) || (m.body.type.equals(m.name) && m.typeid.equals("SELF_TYPE")))) reportError(cl.filename, m.lineNo, "In the definition of " + m.name + " inferred return type "+m.body.type+" does not conform to the declared return type "+m.typeid+"\n");
+					if(!errbody.equals("")) {System.out.print("xxxx"); errorFlag = true;}
+					scopeTable.exitScope();
+				}
+			}
 	}
 
 	private boolean checkCycles(){

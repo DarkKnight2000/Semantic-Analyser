@@ -37,6 +37,9 @@ public class AST{
 		String getString(String space){
 			return "";
 		};
+		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap){
+			return ("****Not Implemented****\n");
+		}
 	}
 	public static class no_expr extends expression {
 		public no_expr(int l){
@@ -44,6 +47,9 @@ public class AST{
 		}
 		String getString(String space){
 			return space+"#"+lineNo+"\n"+space+"_no_expr\n"+space+": "+type;
+		}
+		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap){
+			return "";
 		}
 	}
 	public static class bool_const extends expression{
@@ -56,6 +62,9 @@ public class AST{
 		String getString(String space){
 			return space+"#"+lineNo+"\n"+space+"_bool\n"+space+sp+(value?"1":"0")+"\n"+space+": "+type;
 		}
+		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap){
+			return "";
+		}
 	}
 	public static class string_const extends expression{
 		public String value;
@@ -66,6 +75,9 @@ public class AST{
 		}
 		String getString(String space){
 			return space+"#"+lineNo+"\n"+space+"_string\n"+space+sp+"\""+escapeSpecialCharacters(value)+"\""+"\n"+space+": "+type;
+		}
+		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap){
+			return "";
 		}
 	}
 
@@ -79,17 +91,30 @@ public class AST{
 		String getString(String space){
 			return space+"#"+lineNo+"\n"+space+"_int\n"+space+sp+value+"\n"+space+": "+type;
 		}
+		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap){
+			return "";
+		}
 	}
 
 	public static class object extends expression{
-		public String name, className;
+		public String name;
 		public object(String v, int l){
 			name = v;
 			lineNo = l;
-			type = "Object";
 		}
 		String getString(String space){
 			return space+"#"+lineNo+"\n"+space+"_object\n"+space+sp+name+"\n"+space+": "+type;
+		}
+		String setType(String sp, ScopeTable<AST.ASTNode> st, HashMap<String,class_> cMap){
+			System.out.println("searching "+name);
+			ASTNode o = st.lookUpGlobal(name);
+			if(o==null) return sp+":"+lineNo+": Undeclared identifier "+name+"\n";
+			else if(o instanceof attr)type = ((attr)o).typeid;
+			else if(o instanceof formal)type = ((formal)o).typeid;
+			else if(o instanceof object) type = ((object)o).type;
+			else if(o instanceof class_) type= ((class_)o).name;
+			//System.out.println("vvvv-- "+type);
+			return "";
 		}
 	}
 	public static class comp extends expression{
@@ -100,6 +125,12 @@ public class AST{
 		}
 		String getString(String space){
 			return space+"#"+lineNo+"\n"+space+"_comp\n"+e1.getString(space+sp)+"\n"+space+": "+type;
+		}
+		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap){
+			String err = e1.setType(sp, st, cMap);
+			type = e1.type;
+			if(!e1.type.equals("Bool")) err += sp+":"+lineNo+": Argument of \'not\' function has type "+e1.type+" instead of Bool type\n";
+			return err;
 		}
 	}
 	public static class eq extends expression{
@@ -112,6 +143,12 @@ public class AST{
 		}
 		String getString(String space){
 			return space+"#"+lineNo+"\n"+space+"_eq\n"+e1.getString(space+sp)+"\n"+e2.getString(space+sp)+"\n"+space+": "+type;
+		}
+		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap){
+			String err = e1.setType(sp, st, cMap);
+			err += e2.setType(sp, st, cMap);
+			if(!e1.type.equals(e2.type)) err += sp+":"+lineNo+": Illegal comparision between types "+e1.type+" and "+e2.type+"\n";
+			return err;
 		}
 	}
 	
@@ -150,6 +187,12 @@ public class AST{
 		String getString(String space){
 			return space+"#"+lineNo+"\n"+space+"_neg\n"+e1.getString(space+sp)+"\n"+space+": "+type;
 		}
+		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap){
+			String err = e1.setType(sp, st, cMap);
+			type = "Int";
+			if(!e1.type.equals("Int")) err += sp+":"+lineNo+": Argument of \'~\' function has type "+e1.type+" instead of Int type\n";
+			return err;
+		}
 	}
 	public static class divide extends expression{
 		public expression e1;
@@ -161,6 +204,13 @@ public class AST{
 		}
 		String getString(String space){
 			return space+"#"+lineNo+"\n"+space+"_divide\n"+e1.getString(space+sp)+"\n"+e2.getString(space+sp)+"\n"+space+": "+type;
+		}
+		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap){
+			String err = e1.setType(sp, st, cMap);
+			err += e2.setType(sp, st, cMap);
+			type = "Int";
+			if(!(e1.type.equals("Int") && e2.type.equals("Int"))) err += sp+":"+lineNo+": Arguments of '/' operation have types "+e1.type+" ,"+e2.type+"\n";
+			return err;
 		}
 	}
 	public static class mul extends expression{
@@ -174,6 +224,13 @@ public class AST{
 		String getString(String space){
 			return space+"#"+lineNo+"\n"+space+"_mul\n"+e1.getString(space+sp)+"\n"+e2.getString(space+sp)+"\n"+space+": "+type;
 		}
+		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap){
+			String err = e1.setType(sp, st, cMap);
+			err += e2.setType(sp, st, cMap);
+			type = "Int";
+			if(!(e1.type.equals("Int") && e2.type.equals("Int"))) err += sp+":"+lineNo+": Arguments of '*' operation have types "+e1.type+" ,"+e2.type+"\n";
+			return err;
+		}
 	}
 	public static class sub extends expression{
 		public expression e1;
@@ -186,6 +243,13 @@ public class AST{
 		String getString(String space){
 			return space+"#"+lineNo+"\n"+space+"_sub\n"+e1.getString(space+sp)+"\n"+e2.getString(space+sp)+"\n"+space+": "+type;
 		}
+		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap){
+			String err = e1.setType(sp, st, cMap);
+			err += e2.setType(sp, st, cMap);
+			type = "Int";
+			if(!(e1.type.equals("Int") && e2.type.equals("Int"))) err += sp+":"+lineNo+": Arguments of '-' operation have types "+e1.type+" ,"+e2.type+"\n";
+			return err;
+		}
 	}
 	public static class plus extends expression{
 		public expression e1;
@@ -197,6 +261,13 @@ public class AST{
 		}
 		String getString(String space){
 			return space+"#"+lineNo+"\n"+space+"_plus\n"+e1.getString(space+sp)+"\n"+e2.getString(space+sp)+"\n"+space+": "+type;
+		}
+		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap){
+			String err = e1.setType(sp, st, cMap);
+			err += e2.setType(sp, st, cMap);
+			type = "Int";
+			if(!(e1.type.equals("Int") && e2.type.equals("Int"))) err += sp+":"+lineNo+": Arguments of '+' operation have types "+e1.type+" ,"+e2.type+"\n";
+			return err;
 		}
 	}
 	public static class isvoid extends expression{
@@ -216,7 +287,11 @@ public class AST{
 			lineNo = l;
 		}
 		String getString(String space){
-			return space+"#"+lineNo+"\n"+space+"_new\n"+space+sp+typeid+"\n"+space+": "+type;
+			return space+"#"+lineNo+"\n"+space+"_new\n"+space+sp+typeid+"\n"+space+": bb "+type;
+		}
+		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap){
+			type = typeid;
+			return "";
 		}
 	}
 	public static class assign extends expression{
@@ -228,7 +303,14 @@ public class AST{
 			lineNo = l;
 		}
 		String getString(String space){
-			return space+"#"+lineNo+"\n"+space+"_assign\n"+space+sp+name+"\n"+e1.getString(space+sp)+"\n"+space+": "+type;
+			return space+"#"+lineNo+"\n"+space+"_assign\n"+space+sp+name+"aaa\n"+e1.getString(space+sp)+"\n"+space+": "+type;
+		}
+		String setType(String sp, ScopeTable<AST.ASTNode> st, HashMap<String,class_> cMap){
+			String err = e1.setType(sp,st,cMap);
+			//st.lookUpGlobal(name);
+			//TODO: Should we change the value of variable in scopetable?????
+			type = e1.type;
+			return err;
 		}
 	}
 	public static class block extends expression{
@@ -245,6 +327,14 @@ public class AST{
 			str+=space+": "+type;
 			return str;
 		}
+		String setType(String sp, ScopeTable<AST.ASTNode> st, HashMap<String,class_> cMap){
+			String err = "";
+			for(expression e: l1){
+				err += e.setType(sp, st, cMap);
+			}
+			type = l1.get(l1.size()-1).type;
+			return err;
+		}
 	}
 	public static class loop extends expression{
 		public expression predicate;
@@ -256,6 +346,14 @@ public class AST{
 		}
 		String getString(String space){
 			return space+"#"+lineNo+"\n"+space+"_loop\n"+predicate.getString(space+sp)+"\n"+body.getString(space+sp)+"\n"+space+": "+type;
+		}
+		String setType(String sp, ScopeTable<AST.ASTNode> st, HashMap<String,class_> cMap){
+			String err = "";
+			err += predicate.setType(sp, st, cMap);
+			if(!predicate.type.equals("Bool")) err += sp+":"+lineNo+": Predicate of while loop doesn't have static type Bool\n";
+			err += body.setType(sp, st, cMap);
+			type = "Object";
+			return err;
 		}
 	}
 	public static class cond extends expression{
@@ -271,6 +369,16 @@ public class AST{
 		String getString(String space){
 			return space+"#"+lineNo+"\n"+space+"_cond\n"+predicate.getString(space+sp)+"\n"+ifbody.getString(space+sp)+"\n"+elsebody.getString(space+sp)+"\n"+space+": "+type;
 		}
+		String setType(String sp, ScopeTable<AST.ASTNode> st, HashMap<String,class_> cMap){
+			String err = "";
+			err += predicate.setType(sp, st, cMap);
+			if(!predicate.type.equals("Bool")) err += sp+":"+lineNo+": Predicate of if conditional doesn't have static type Bool\n";
+			err += ifbody.setType(sp, st, cMap);
+			err += elsebody.setType(sp, st, cMap);
+			//FIXME: assign type based on body types
+			type = "Object";
+			return err;
+		}
 	}
 	public static class let extends expression{
 		public String name;
@@ -285,7 +393,22 @@ public class AST{
 			lineNo = l;
 		}
 		String getString(String space){
-			return space+"#"+lineNo+"\n"+space+"_let\n"+space+sp+name+"\n"+space+sp+typeid+"\n"+value.getString(space+sp)+"\n"+body.getString(space+sp)+"\n"+space+": "+type;
+			return space+"#"+lineNo+"\n"+space+"_let\n"+space+sp+name+"\n"+space+sp+typeid+"\nval\n"+value.getString(space+sp)+"\nbody\n"+body.getString(space+sp)+"\n"+space+": "+type;
+		}
+		String setType(String sp, ScopeTable<AST.ASTNode> st, HashMap<String,class_> cMap){
+			String err = "";
+			object o = new object(name, lineNo);
+			st.enterScope();
+			st.insert(name,o);
+			//o.setType(sp, st, cMap);
+			o.type = typeid;
+			err += value.setType(sp, st, cMap);
+			if(!typeid.equals(value.type)) err += sp+":"+lineNo+": Invalid initialization of identifier "+name+" of type "+typeid+" with "+value.type+" type\n";
+			err += body.setType(sp, st, cMap);
+			//System.out.println("xxx  "+st.lookUpGlobal(name));
+			st.exitScope();
+			type = body.type;
+			return err;
 		}
 	}
 	public static class dispatch extends expression{
@@ -302,10 +425,44 @@ public class AST{
 			String str;
 			str = space+"#"+lineNo+"\n"+space+"_dispatch\n"+caller.getString(space+sp)+"\nyyy\n"+space+sp+name+"\n"+space+sp+"(\n";
 			for ( expression e1 : actuals ) {
-				str += e1.getString(space+sp)+"\n";	
+				str += e1.getString(space+sp)+"\nzxc\n";	
 			}
 			str+=space+sp+")\n"+space+": "+type;
 			return str;
+		}
+		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap){
+			String err = "";
+			err = err.concat(caller.setType(sp,st,cMap));
+			for ( expression e1 : actuals ) err = err.concat(e1.setType(sp,st,cMap));	
+			for ( expression e1 : actuals ) if(e1.type == "_no_type") e1.type = "Object";
+			//System.out.println("claeer type: "+caller.type);
+			class_ callerClass = cMap.get(caller.type);
+			int found=0;
+			if(callerClass != null){
+				for(method m: callerClass.methods){
+					if(m.name.equals(name)){
+						found=1;
+						for(int i=0;i<m.formals.size();i++){
+							if(!m.formals.get(i).typeid.equals(actuals.get(i).type)) {
+								err = err.concat(sp+lineNo+": In call of method "+m.name+" passed argument of type "+actuals.get(i).type+" does not conform to declared type "+m.formals.get(i).typeid +" of argument "+m.formals.get(i).name+"\n");
+								found = 2;
+							}
+						}
+						if(found==1){
+							if(m.typeid == "SELF_TYPE") type = caller.type;
+							else type = m.typeid;
+							return "";
+						}
+						break;
+					}
+				}
+			}
+			if(found==0) {
+				err = err.concat(sp+lineNo+": Calling Unknown function "+name+"\n");
+				type = "Object";
+			}
+
+			return err;
 		}
 	}
 	public static class static_dispatch extends expression{
@@ -378,6 +535,8 @@ public class AST{
 		}
 	}
 	public static class feature extends ASTNode {
+		public String name;
+		public String typeid;
 		public feature(){
 		}
 		String getString(String space){
@@ -386,9 +545,7 @@ public class AST{
 
 	}
 	public static class method extends feature {
-		public String name;
 		public List<formal> formals;
-		public String typeid;
 		public expression body;
 		public method(String n, List<formal> f, String t, expression b, int l){
 			name = n;
@@ -416,13 +573,11 @@ public class AST{
 			for ( formal f : formals ) {
 				str += f.getString(space+sp)+"\n";
 			}
-			str += space+sp+typeid+"\nxxx\n"+body.getString(space+sp)+"\nxx\n";
+			str += space+sp+typeid+"\n"+body.getString(space+sp)+"\n";
 			return str;
 		}
 	}
 	public static class attr extends feature {
-		public String name;
-		public String typeid;
 		public expression value;
 		public attr(String n, String t, expression v, int l){
 			name = n;
@@ -436,6 +591,11 @@ public class AST{
 		}
 		public String getString(String space){
 			return space+"#"+lineNo+"\n"+space+"_attr\n"+space+sp+name+"\n"+space+sp+typeid+"\n"+value.getString(space+sp);
+		}
+		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap){
+			String err = value.setType(sp, st, cMap);
+			if(!value.type.equals(typeid)) err += sp+":"+lineNo+": Intialization of attribute "+name+" doesnot match with declared type "+value.type+"\n";
+			return err;
 		}
 	}
 	public static class class_ extends ASTNode {
@@ -498,6 +658,7 @@ public class AST{
 						rem = cms;
 					}
 				}
+				if(rem.name.equals("")) presms.add(pms);
 				methods.remove(rem);
 			}
 			methods.addAll(presms);
