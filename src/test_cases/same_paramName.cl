@@ -17,11 +17,10 @@ class Main {
 
 class Maisn1 inherits IO{
 	i:String <- new String;
-
-	out_strings(i:Int,i:String):IO {
+	out_strings(i:String,i:String):IO {
 		new IO
 	};
-	out_strings(i:String,i:String):IO {
+	out_strings(i:Int,i:String):IO {
 		new IO
 	};
 };

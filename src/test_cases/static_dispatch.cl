@@ -11,17 +11,13 @@ class Main {
 		--while true loop new Bool pool
 		--if i1 then new Int else new Int fi
 		--let i5:Int <- 0 in i8.out_int(i5)
-		i22@Maisn1.out_strings(i7,i)
+		i22@Maisn1.out_strings(i7,i7)
 	};
 };
 
 class Maisn1 inherits IO{
 	i:String <- new String;
-
-	out_strings(i:Int,i:String):IO {
-		new IO
-	};
-	out_strings(i:String,i:String):IO {
+	out_strings(i:String,i1:String):IO {
 		new IO
 	};
 };
