@@ -164,6 +164,13 @@ public class AST{
 		String getString(String space){
 			return space+"#"+lineNo+"\n"+space+"_leq\n"+e1.getString(space+sp)+"\n"+e2.getString(space+sp)+"\n"+space+": "+type;
 		}
+		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap){
+			String err = e1.setType(sp, st, cMap);
+			err += e2.setType(sp, st, cMap);
+			type = "Bool";
+			if(!(e1.type.equals("Int") && e2.type.equals("Int"))) err += sp+":"+lineNo+": Arguments of '/' operation have types "+e1.type+" ,"+e2.type+"\n";
+			return err;
+		}
 	}
 
 	public static class lt extends expression{
@@ -176,6 +183,13 @@ public class AST{
 		}
 		String getString(String space){
 			return space+"#"+lineNo+"\n"+space+"_lt\n"+e1.getString(space+sp)+"\n"+e2.getString(space+sp)+"\n"+space+": "+type;
+		}
+		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap){
+			String err = e1.setType(sp, st, cMap);
+			err += e2.setType(sp, st, cMap);
+			type = "Bool";
+			if(!(e1.type.equals("Int") && e2.type.equals("Int"))) err += sp+":"+lineNo+": Arguments of '/' operation have types "+e1.type+" ,"+e2.type+"\n";
+			return err;
 		}
 	}
 	public static class neg extends expression{
@@ -279,6 +293,11 @@ public class AST{
 		String getString(String space){
 			return space+"#"+lineNo+"\n"+space+"_isvoid\n"+e1.getString(space+sp)+"\n"+space+": "+type;
 		}
+		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap){
+			String err = e1.setType(sp, st, cMap);
+			type = "Bool";
+			return err;
+		}
 	}
 	public static class new_ extends expression{
 		public String typeid;
@@ -308,7 +327,6 @@ public class AST{
 		String setType(String sp, ScopeTable<AST.ASTNode> st, HashMap<String,class_> cMap){
 			String err = e1.setType(sp,st,cMap);
 			//st.lookUpGlobal(name);
-			//TODO: Should we change the value of variable in scopetable?????
 			type = e1.type;
 			return err;
 		}
@@ -403,7 +421,7 @@ public class AST{
 			//o.setType(sp, st, cMap);
 			o.type = typeid;
 			err += value.setType(sp, st, cMap);
-			if(!typeid.equals(value.type)) err += sp+":"+lineNo+": Invalid initialization of identifier "+name+" of type "+typeid+" with "+value.type+" type\n";
+			if(!typeid.equals(value.type) && !value.type.equals("_no_type")) err += sp+":"+lineNo+": Invalid initialization of identifier "+name+" of type "+typeid+" with "+value.type+" type\n";
 			err += body.setType(sp, st, cMap);
 			//System.out.println("xxx  "+st.lookUpGlobal(name));
 			st.exitScope();
@@ -442,10 +460,13 @@ public class AST{
 				for(method m: callerClass.methods){
 					if(m.name.equals(name)){
 						found=1;
-						for(int i=0;i<m.formals.size();i++){
-							if(!m.formals.get(i).typeid.equals(actuals.get(i).type)) {
-								err = err.concat(sp+lineNo+": In call of method "+m.name+" passed argument of type "+actuals.get(i).type+" does not conform to declared type "+m.formals.get(i).typeid +" of argument "+m.formals.get(i).name+"\n");
-								found = 2;
+						if(m.formals.size() != actuals.size()) {err += sp+lineNo+": Dispatch with wrong number of arguments\n";found=2;}
+						else {
+							for(int i=0;i<m.formals.size();i++){
+								if(!m.formals.get(i).typeid.equals(actuals.get(i).type)) {
+									err = err.concat(sp+lineNo+": In call of method "+m.name+" passed argument of type "+actuals.get(i).type+" does not conform to declared type "+m.formals.get(i).typeid +" of argument "+m.formals.get(i).name+"\n");
+									found = 2;
+								}
 							}
 						}
 						if(found==1){
@@ -458,7 +479,7 @@ public class AST{
 				}
 			}
 			if(found==0) {
-				err = err.concat(sp+lineNo+": Calling Unknown function "+name+"\n");
+				err = err.concat(sp+lineNo+": Calling Unknown function "+name+" through dispatch\n");
 				type = "Object";
 			}
 
@@ -486,6 +507,49 @@ public class AST{
 			str+=space+sp+")\n"+space+": "+type;
 			return str;
 		}
+		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap){
+			String err = "";
+			err += (caller.setType(sp,st,cMap));
+			for ( expression e1 : actuals ) err += (e1.setType(sp,st,cMap));	
+			for ( expression e1 : actuals ) if(e1.type == "_no_type") e1.type = "Object";
+			//System.out.println("claeer type: "+caller.type);
+			class_ callerClass = cMap.get(typeid);
+			String calName = caller.type;
+			if(!cMap.containsKey(typeid)) {err += sp+":"+lineNo+": Static dispatch to undefined class "+typeid+"\n";type="Object";return err;}
+			else if(!callerClass.name.equals("Object")){
+				while(!calName.equals("Object")&&!calName.equals(callerClass.name))	{calName = cMap.get(calName).parent;System.out.println("cls-"+calName);}
+				System.out.println("x-"+calName);
+				if(calName.equals("Object")) err += (sp+":"+lineNo+": Static dispatch to unrelated class "+callerClass.name+"\n");
+			}
+			int found=0;
+			if(callerClass != null){
+				for(method m: callerClass.methods){
+					if(m.name.equals(name)){
+						found=1;
+						if(m.formals.size() != actuals.size()) {err += sp+lineNo+": Static dispatch with wrong number of arguments\n";found=2;}
+						else {
+							for(int i=0;i<m.formals.size();i++){
+								if(!m.formals.get(i).typeid.equals(actuals.get(i).type)) {
+									err += (sp+lineNo+": In call of method "+m.name+" passed argument of type "+actuals.get(i).type+" does not conform to declared type "+m.formals.get(i).typeid +" of argument "+m.formals.get(i).name+"\n");
+									found = 2;
+								}
+							}
+						}
+						if(found==1){
+							if(m.typeid == "SELF_TYPE") type = caller.type;
+							else type = m.typeid;
+							return err;
+						}
+						break;
+					}
+				}
+			}
+			if(found==0) {
+				err = err.concat(sp+lineNo+": Calling Unknown function "+name+" through static dispatch\n");
+				type = "Object";
+			}
+			return err;
+		}
     }
 	public static class typcase extends expression{
 		public expression predicate;
@@ -502,6 +566,10 @@ public class AST{
 			}
 			str += space+": "+type;
 			return str;
+		}
+		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap){
+			String err = "";
+			return err;
 		}
 	}
 	public static class branch extends ASTNode {
@@ -554,7 +622,15 @@ public class AST{
 			body = b;
 			lineNo = l;
 		}
-
+		public String getErrDecl(String sp){
+			ArrayList<String> fname = new ArrayList<String>();
+			String err = "";
+			for(formal f: formals){
+				if(fname.contains(f.name)) err += sp+":"+lineNo+": Formal name "+f.name+" is already used\n";
+				fname.add(f.name);
+			}
+			return err;
+		}
 		public static String getErr(method m1, method m2, String pre){
 			if(!m1.name.equals(m2.name)) return "";
 			else if(m1.formals.size() != m2.formals.size()) return pre+":"+m1.lineNo+": Different number of parameters in redefinition of inherited function\n";
@@ -594,7 +670,8 @@ public class AST{
 		}
 		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap){
 			String err = value.setType(sp, st, cMap);
-			if(!value.type.equals(typeid)) err += sp+":"+lineNo+": Intialization of attribute "+name+" doesnot match with declared type "+value.type+"\n";
+			//System.out.println(value.type+"xxx"+typeid+"\n");
+			if(!value.type.equals(typeid) && !value.type.equals("_no_type")) err += sp+":"+lineNo+": Invalid intialization of attribute "+name+" of type "+typeid+" with type "+value.type+"\n";
 			return err;
 		}
 	}
@@ -617,6 +694,41 @@ public class AST{
 				else if(f1 instanceof attr) attrs.add((attr) f1);
 			}
 			lineNo = l;
+		}
+		public String getErrDecl(){
+			ArrayList<String> fname = new ArrayList<String>();
+			ArrayList<method> delBuff = new ArrayList<method>();
+			String err = "";
+			for(method m: methods){
+				//System.out.println("asd"+err+"\n");
+				if(fname.contains(m.name)){
+					err = err.concat(filename+":"+m.lineNo+": Class already contains definition of method with name "+m.name+" \n");
+					//methods.remove(m);
+					err += m.getErrDecl(filename);
+					delBuff.add(m);
+				}
+				else{
+					err += m.getErrDecl(filename);
+					fname.add(m.name);
+				}
+			}
+			methods.removeAll(delBuff);
+			fname.clear();
+			delBuff.clear();
+			ArrayList<attr> delBuffA = new ArrayList<attr>();
+			for(attr m: attrs){
+				if(fname.contains(m.name)){
+					err += filename+":"+m.lineNo+": Class already contains definition of attribute with name "+m.name+" \n";
+					//attrs.remove(m);
+					delBuffA.add(m);
+				}
+				else{
+					//err += m.getErrDecl(name);
+					fname.add(m.name);
+				}
+			}
+			attrs.removeAll(delBuffA);
+			return err;
 		}
 
 		public String addParFeats(List<method> parm, List<attr> para){
@@ -668,11 +780,11 @@ public class AST{
 		String getString(String space){
 			String str;
 			str = space+"#"+lineNo+"\n"+space+"_class\n"+space+sp+name+"\n"+space+sp+parent+"\n"+space+sp+"\""+filename+"\""+"\n"+space+sp+"(\n";
-			for ( method f : methods ) {
-				str += f.getString(space+sp)+"\n";
-			}
 			for ( attr f : attrs ) {
 				str += f.getString(space+sp)+"\n";
+			}
+			for ( method f : methods ) {
+				if(!f.body.type.equals("_no_type")) str += f.getString(space+sp)+"\n";
 			}
 			str += space+sp+")";
 			return str;

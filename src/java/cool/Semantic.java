@@ -28,22 +28,26 @@ public class Semantic{
 		inherGraph = new HashMap<String, ArrayList<String>>();
 		scopeTable = new ScopeTable<AST.ASTNode>();
 
-		AST.class_ IO = new AST.class_("IO", "", "", new ArrayList<AST.feature>(Arrays.asList(
-			new AST.method("out_string", new ArrayList<AST.formal>(Arrays.asList(new AST.formal("x", "String", 0))), "SELF_TYPE",(AST.expression) new AST.no_expr(0), 0),
-			(AST.feature) new AST.method("out_int", new ArrayList<AST.formal>(Arrays.asList(new AST.formal("x", "Int", 0))), "SELF_TYPE",(AST.expression) new AST.no_expr(0), 0),
-			(AST.feature) new AST.method("in_string", new ArrayList<AST.formal>(), "String",(AST.expression) new AST.no_expr(0), 0),
-			(AST.feature) new AST.method("in_int", new ArrayList<AST.formal>(), "Int",(AST.expression) new AST.no_expr(0), 0)
-		)), 0);
-
 		AST.class_ Object = new AST.class_("Object", "", "", new ArrayList<AST.feature>(Arrays.asList(
 			(AST.feature) new AST.method("abort", new ArrayList<AST.formal>(), "Object",(AST.expression) new AST.no_expr(0), 0),
 			(AST.feature) new AST.method("type_name", new ArrayList<AST.formal>(), "String",(AST.expression) new AST.no_expr(0), 0),
 			(AST.feature) new AST.method("copy", new ArrayList<AST.formal>(), "SELF_TYPE",(AST.expression) new AST.no_expr(0), 0)
 		)), 0);
 
-		AST.class_ Int = new AST.class_("Int", "", "", new ArrayList<AST.feature>(), 0);
-		AST.class_ Bool = new AST.class_("Bool", "", "", new ArrayList<AST.feature>(), 0);
-		AST.class_ String = new AST.class_("String", "", "", new ArrayList<AST.feature>(), 0);
+		AST.class_ IO = new AST.class_("IO", "", "Object", new ArrayList<AST.feature>(Arrays.asList(
+			new AST.method("out_string", new ArrayList<AST.formal>(Arrays.asList(new AST.formal("x", "String", 0))), "SELF_TYPE",(AST.expression) new AST.no_expr(0), 0),
+			(AST.feature) new AST.method("out_int", new ArrayList<AST.formal>(Arrays.asList(new AST.formal("x", "Int", 0))), "SELF_TYPE",(AST.expression) new AST.no_expr(0), 0),
+			(AST.feature) new AST.method("in_string", new ArrayList<AST.formal>(), "String",(AST.expression) new AST.no_expr(0), 0),
+			(AST.feature) new AST.method("in_int", new ArrayList<AST.formal>(), "Int",(AST.expression) new AST.no_expr(0), 0)
+		)), 0);
+		IO.addParFeats(Object.methods, Object.attrs);
+
+		AST.class_ Int = new AST.class_("Int", "", "Object", new ArrayList<AST.feature>(), 0);
+		Int.addParFeats(Object.methods, Object.attrs);
+		AST.class_ Bool = new AST.class_("Bool", "", "Object", new ArrayList<AST.feature>(), 0);
+		Bool.addParFeats(Object.methods, Object.attrs);
+		AST.class_ String = new AST.class_("String", "", "Object", new ArrayList<AST.feature>(), 0);
+		String.addParFeats(Object.methods, Object.attrs);
 
 		allClsNames.add(IO.name);
 		classMap.put(IO.name, IO);
@@ -58,6 +62,7 @@ public class Semantic{
 			}
 			if(cl.parent.equals("Int")||cl.parent.equals("String")||cl.parent.equals("Bool")){
 				reportError(cl.filename, cl.lineNo, "Class "+cl.name+" cannot inherit from "+cl.parent+"\n");
+				continue;
 			}
 			allClsNames.add(cl.name);
 			classMap.put(cl.name, cl);
@@ -95,23 +100,29 @@ public class Semantic{
 		classMap.put("String",String);
 		for(String cln: allClsNames){
 			AST.class_ cl = classMap.get(cln), cpl = classMap.get(cl.parent);
-			String err = cl.addParFeats(cpl.methods, cpl.attrs);
+			String err = cl.getErrDecl();
+			if(!err.equals("")) {System.out.print(err);errorFlag=true;}
+			err = "";
+			err += cl.addParFeats(cpl.methods, cpl.attrs);
 			if(!err.equals("")) reportError(cl.filename, cl.lineNo, err);
 			scopeTable.insert(cl.name, (AST.ASTNode) cl);
 			scopeTable.enterScope();
 			scopeTable.insert("self", (AST.ASTNode) cl);
-				for(AST.attr a: cl.attrs)  scopeTable.insert(a.name, (AST.ASTNode) a);
-				for(AST.method m: cl.methods){
-					scopeTable.insert(m.name, (AST.ASTNode) m);
-					scopeTable.enterScope();
-					for(AST.formal f: m.formals) scopeTable.insert(f.name, (AST.ASTNode) f);
-					String errbody = m.body.setType(cl.filename+":",scopeTable, classMap);
-					System.out.print(errbody);
-					if(!m.body.type.equals("_no_type") && (!m.body.type.equals(m.typeid) || (m.body.type.equals(m.name) && m.typeid.equals("SELF_TYPE")))) reportError(cl.filename, m.lineNo, "In the definition of " + m.name + " inferred return type "+m.body.type+" does not conform to the declared return type "+m.typeid+"\n");
-					if(!errbody.equals("")) {System.out.print("xxxx"); errorFlag = true;}
-					scopeTable.exitScope();
-				}
+			for(AST.attr a: cl.attrs)  scopeTable.insert(a.name, (AST.ASTNode) a);
+			String errbody = "";
+			for(AST.attr a: cl.attrs)  errbody += a.setType(cl.filename, scopeTable, classMap);
+			for(AST.method m: cl.methods){
+				//errbody = "";
+				scopeTable.insert(m.name, (AST.ASTNode) m);
+				scopeTable.enterScope();
+				for(AST.formal f: m.formals) scopeTable.insert(f.name, (AST.ASTNode) f);
+				errbody += m.body.setType(cl.filename,scopeTable, classMap);
+				if(!m.body.type.equals("_no_type") && (!m.body.type.equals(m.typeid) || (m.body.type.equals(m.name) && !m.typeid.equals("SELF_TYPE")) || (m.body.type.equals("SELF_TYPE") && !m.typeid.equals(m.name)))) reportError(cl.filename, m.lineNo, "In the definition of " + m.name + " inferred return type "+m.body.type+" does not conform to the declared return type "+m.typeid+"\n");
+				scopeTable.exitScope();
 			}
+			if(!errbody.equals("")) {System.out.print(errbody); errorFlag = true;}
+			//errorFlag = true;
+		}
 	}
 
 	private boolean checkCycles(){
