@@ -123,6 +123,7 @@ public class Semantic{
 				scopeTable.exitScope();
 			}
 			if(!errbody.equals("")) {System.out.print(errbody); errorFlag = true;}
+			scopeTable.exitScope();
 			//errorFlag = true;
 		}
 	}
