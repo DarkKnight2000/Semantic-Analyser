@@ -104,7 +104,7 @@ public class Semantic{
 			if(!err.equals("")) {System.out.print(err);errorFlag=true;}
 			err = "";
 			err += cl.addParFeats(cpl.methods, cpl.attrs);
-			if(!err.equals("")) reportError(cl.filename, cl.lineNo, err);
+			if(!err.equals("")) {System.out.print(err);errorFlag=true;}
 			scopeTable.insert(cl.name, (AST.ASTNode) cl);
 			scopeTable.enterScope();
 			scopeTable.insert("self", (AST.ASTNode) cl);
