@@ -8,6 +8,7 @@ public class Semantic{
 	private ArrayList<String> allClsNames, lateDeclared;
 	private HashMap<String, ArrayList<String>> inherGraph;
 	private ScopeTable<AST.ASTNode> scopeTable;
+	private HashMap<String,Integer> depths;
 
 	public void reportError(String filename, int lineNo, String error){
 		errorFlag = true;
@@ -27,6 +28,7 @@ public class Semantic{
 		lateDeclared = new ArrayList<String>();
 		inherGraph = new HashMap<String, ArrayList<String>>();
 		scopeTable = new ScopeTable<AST.ASTNode>();
+		depths = new HashMap<String, Integer>();
 
 		AST.class_ Object = new AST.class_("Object", "", "", new ArrayList<AST.feature>(Arrays.asList(
 			(AST.feature) new AST.method("abort", new ArrayList<AST.formal>(), "Object",(AST.expression) new AST.no_expr(0), 0),
@@ -110,14 +112,14 @@ public class Semantic{
 			scopeTable.insert("self", (AST.ASTNode) cl);
 			for(AST.attr a: cl.attrs)  scopeTable.insert(a.name, (AST.ASTNode) a);
 			String errbody = "";
-			for(AST.attr a: cl.attrs)  errbody += a.setType(cl.filename, scopeTable, classMap);
+			for(AST.attr a: cl.attrs)  errbody += a.setType(cl.filename, scopeTable, classMap, depths);
 			for(AST.method m: cl.methods){
 				//errbody = "";
 				scopeTable.insert(m.name, (AST.ASTNode) m);
 				scopeTable.enterScope();
 				for(AST.formal f: m.formals) scopeTable.insert(f.name, (AST.ASTNode) f);
-				errbody += m.body.setType(cl.filename,scopeTable, classMap);
-				if(!m.body.type.equals("_no_type") && (!m.body.type.equals(m.typeid) || (m.body.type.equals(m.name) && !m.typeid.equals("SELF_TYPE")) || (m.body.type.equals("SELF_TYPE") && !m.typeid.equals(m.name)))) reportError(cl.filename, m.lineNo, "In the definition of " + m.name + " inferred return type "+m.body.type+" does not conform to the declared return type "+m.typeid+"\n");
+				errbody += m.body.setType(cl.filename,scopeTable, classMap, depths);
+				if(!m.body.type.equals("_no_type") && (!AST.expression.isAncestor(m.body.type, m.typeid, classMap) || (m.typeid.equals("SELF_TYPE") && !AST.expression.isAncestor(m.body.type, m.typeid, classMap)) || (m.body.type.equals("SELF_TYPE") && !AST.expression.isAncestor(m.name, m.typeid, classMap)))) reportError(cl.filename, m.lineNo, "In the definition of " + m.name + " inferred return type "+m.body.type+" does not conform to the declared return type "+m.typeid+"\n");
 				scopeTable.exitScope();
 			}
 			if(!errbody.equals("")) {System.out.print(errbody); errorFlag = true;}
@@ -132,6 +134,8 @@ public class Semantic{
 		for(String clname: allClsNames) isDone.put(clname, false);
 		int total = allClsNames.size();
 		bfsQueue.addAll(Arrays.asList("IO","Object"));
+		depths.put("Object", 1);
+		depths.put("IO",2);
 		int visited = bfsQueue.size();
 		while(!bfsQueue.isEmpty()){
 			String cl = bfsQueue.peek();
@@ -145,6 +149,7 @@ public class Semantic{
 					if(!isDone.get(chld)){
 						visited++;
 						bfsQueue.add(chld);
+						depths.put(chld,depths.get(cl)+1);
 					}
 				}
 			}
