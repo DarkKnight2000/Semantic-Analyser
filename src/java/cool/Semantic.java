@@ -104,10 +104,11 @@ public class Semantic{
 		for(String cln: allClsNames){
 			if((Arrays.asList("IO","Object")).contains(cln)) continue;
 			AST.class_ cl = classMap.get(cln), cpl = classMap.get(cl.parent);
-			String err = cl.getErrDecl(classMap);
+			String err = "";
 			if(!err.equals("")) {System.out.print(err);errorFlag=true;}
 			err = "";
 			err += cl.addParFeats(cpl.methods, cpl.attrs);
+			err += cl.getErrDecl(classMap);
 			if(!err.equals("")) {System.out.print(err);errorFlag=true;}
 			scopeTable.insert(cl.name, (AST.ASTNode) cl);
 			scopeTable.enterScope();

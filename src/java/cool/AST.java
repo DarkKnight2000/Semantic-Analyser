@@ -501,7 +501,7 @@ public class AST{
 						if(m.formals.size() != actuals.size()) {err += sp+lineNo+": Dispatch with wrong number of arguments\n";found=2;}
 						else {
 							for(int i=0;i<m.formals.size();i++){
-								if(!m.formals.get(i).typeid.equals(actuals.get(i).type) && cMap.containsKey(m.formals.get(i).typeid) && cMap.containsKey(actuals.get(i).type)) {
+								if(!expression.isAncestor(actuals.get(i).type, m.formals.get(i).typeid, cMap)) {
 									err = err.concat(sp+":"+lineNo+": In call of method "+m.name+" passed argument of type "+actuals.get(i).type+" does not conform to declared type "+m.formals.get(i).typeid +" of argument "+m.formals.get(i).name+"\n");
 									found = 2;
 								}
@@ -569,7 +569,7 @@ public class AST{
 						if(m.formals.size() != actuals.size()) {err += sp+lineNo+": Static dispatch with wrong number of arguments\n";found=2;}
 						else {
 							for(int i=0;i<m.formals.size();i++){
-								if(!m.formals.get(i).typeid.equals(actuals.get(i).type) && cMap.containsKey(actuals.get(i).type) && cMap.containsKey(m.formals.get(i).typeid)) {
+								if(!expression.isAncestor(actuals.get(i).type, m.formals.get(i).typeid, cMap)) {
 									err += (sp+":"+lineNo+": In call of method "+m.name+" passed argument of type "+actuals.get(i).type+" does not conform to declared type "+m.formals.get(i).typeid +" of argument "+m.formals.get(i).name+"\n");
 									found = 2;
 								}
@@ -683,7 +683,7 @@ public class AST{
 			String err = "";
 				if(!cMap.containsKey(typeid)) err += sp+":"+lineNo+": Unknown return type for "+typeid+" method "+name+"\n";
 			for(formal f: formals){
-				if(!cMap.containsKey(f.typeid)){ err += sp+":"+lineNo+": Unknown type "+f.typeid+" for formal variable "+f.name+"\n"; }
+				if(!cMap.containsKey(f.typeid)){ err += sp+":"+lineNo+": Unknown type "+f.typeid+" for formal variable "+f.name+"\n"; f.typeid = "Object";}
 				if(fname.contains(f.name)) err += sp+":"+lineNo+": Formal name "+f.name+" is already used\n";
 				fname.add(f.name);
 			}
@@ -775,7 +775,7 @@ public class AST{
 			delBuff.clear();
 			ArrayList<attr> delBuffA = new ArrayList<attr>();
 			for(attr m: attrs){
-				if(!cMap.containsKey(m.typeid)) err += filename+":"+m.lineNo+": Unknown type "+m.typeid+" for attribute "+m.name+"\n";
+				if(!cMap.containsKey(m.typeid)) {err += filename+":"+m.lineNo+": Unknown type "+m.typeid+" for attribute "+m.name+"\n";m.typeid="Object";}
 				else if(fname.contains(m.name)){
 					err += filename+":"+m.lineNo+": Class already contains definition of attribute with name "+m.name+" \n";
 					//attrs.remove(m);
