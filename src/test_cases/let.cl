@@ -9,6 +9,14 @@ class Main {
 		--{new Bool;new Bool;}
 		--while true loop new Bool pool
 		--if i1 then new Int else new Int fi
-		let i5:Int <- 0 in i8.out_int(i5)
+		let i5:IO <- new Maisn1 in i8.out_int(i5)
+	};
+};
+
+
+class Maisn1 inherits IO{
+	i:String <- new String;
+	out_strings(i:String,i1:String):IO {
+		new IO
 	};
 };

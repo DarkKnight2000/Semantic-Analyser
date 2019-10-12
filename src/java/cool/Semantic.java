@@ -58,6 +58,7 @@ public class Semantic{
 
 		// Adding classes into inheritance graph--late declarations considered
 		for(AST.class_ cl: program.classes){
+			//System.out.println(cl.filename+cl.name);
 			if(allClsNames.contains(cl.name)){
 				reportError(cl.filename, cl.lineNo, "Class "+cl.name+" was previously defined\n");
 				continue;
@@ -96,13 +97,14 @@ public class Semantic{
 			return;
 		}
 
-		allClsNames.removeAll(Arrays.asList("IO","Object"));
+		//allClsNames.removeAll(Arrays.asList("IO","Object"));
 		classMap.put("Int",Int);
 		classMap.put("Bool",Bool);
 		classMap.put("String",String);
 		for(String cln: allClsNames){
+			if((Arrays.asList("IO","Object")).contains(cln)) continue;
 			AST.class_ cl = classMap.get(cln), cpl = classMap.get(cl.parent);
-			String err = cl.getErrDecl();
+			String err = cl.getErrDecl(classMap);
 			if(!err.equals("")) {System.out.print(err);errorFlag=true;}
 			err = "";
 			err += cl.addParFeats(cpl.methods, cpl.attrs);
@@ -144,7 +146,7 @@ public class Semantic{
 			allClsNames.remove(cl);
 			orderCls.add(cl);
 			isDone.put(cl, true);
-			System.out.println("x"+cl);
+			//System.out.println("x"+cl);
 			if(inherGraph.containsKey(cl)){
 				for(String chld: inherGraph.get(cl)){
 					if(!isDone.get(chld)){
