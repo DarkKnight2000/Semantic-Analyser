@@ -23,13 +23,14 @@ public class Semantic{
 */
 	public Semantic(AST.program program){
 		//Write Semantic analyzer code here
-		classMap = new HashMap<String,AST.class_>();
-		allClsNames = new ArrayList<String>();
-		lateDeclared = new ArrayList<String>();
-		inherGraph = new HashMap<String, ArrayList<String>>();
-		scopeTable = new ScopeTable<AST.ASTNode>();
-		depths = new HashMap<String, Integer>();
+		classMap = new HashMap<String,AST.class_>(); // Map from classname to class
+		allClsNames = new ArrayList<String>(); // List of all classes
+		lateDeclared = new ArrayList<String>(); // List of classes declared after a child class
+		inherGraph = new HashMap<String, ArrayList<String>>(); // Adjacency list of inheritance graph
+		scopeTable = new ScopeTable<AST.ASTNode>(); // Scopetable object
+		depths = new HashMap<String, Integer>(); // Distance from "Object" class in inheritance class
 
+		/* Creating base classes with respective methods */
 		AST.class_ Object = new AST.class_("Object", "", "", new ArrayList<AST.feature>(Arrays.asList(
 			(AST.feature) new AST.method("abort", new ArrayList<AST.formal>(), "Object",(AST.expression) new AST.no_expr(0), 0),
 			(AST.feature) new AST.method("type_name", new ArrayList<AST.formal>(), "String",(AST.expression) new AST.no_expr(0), 0),
@@ -42,14 +43,14 @@ public class Semantic{
 			(AST.feature) new AST.method("in_string", new ArrayList<AST.formal>(), "String",(AST.expression) new AST.no_expr(0), 0),
 			(AST.feature) new AST.method("in_int", new ArrayList<AST.formal>(), "Int",(AST.expression) new AST.no_expr(0), 0)
 		)), 0);
-		IO.addParFeats(Object.methods, Object.attrs);
 
 		AST.class_ Int = new AST.class_("Int", "", "Object", new ArrayList<AST.feature>(), 0);
-		Int.addParFeats(Object.methods, Object.attrs);
 		AST.class_ Bool = new AST.class_("Bool", "", "Object", new ArrayList<AST.feature>(), 0);
-		Bool.addParFeats(Object.methods, Object.attrs);
-		AST.class_ String = new AST.class_("String", "", "Object", new ArrayList<AST.feature>(), 0);
-		String.addParFeats(Object.methods, Object.attrs);
+		AST.class_ String = new AST.class_("String", "", "Object", new ArrayList<AST.feature>(Arrays.asList(
+			(AST.feature) new AST.method("length", new ArrayList<AST.formal>(), "Int",(AST.expression) new AST.no_expr(0), 0),
+			(AST.feature) new AST.method("concat", new ArrayList<AST.formal>(Arrays.asList(new AST.formal("s", "String", 0))), "String",(AST.expression) new AST.no_expr(0), 0),
+			(AST.feature) new AST.method("substr", new ArrayList<AST.formal>(Arrays.asList(new AST.formal("i", "Int", 0), new AST.formal("l", "Int", 0))), "String",(AST.expression) new AST.no_expr(0), 0)
+		)),0);
 
 		allClsNames.add(IO.name);
 		classMap.put(IO.name, IO);
@@ -58,11 +59,12 @@ public class Semantic{
 
 		// Adding classes into inheritance graph--late declarations considered
 		for(AST.class_ cl: program.classes){
-			//System.out.println(cl.filename+cl.name);
+			//Duplicate declaration
 			if(allClsNames.contains(cl.name)){
 				reportError(cl.filename, cl.lineNo, "Class "+cl.name+" was previously defined\n");
 				continue;
 			}
+			//Cannot inherit these classes
 			if(cl.parent.equals("Int")||cl.parent.equals("String")||cl.parent.equals("Bool")){
 				reportError(cl.filename, cl.lineNo, "Class "+cl.name+" cannot inherit from "+cl.parent+"\n");
 				continue;
@@ -80,6 +82,7 @@ public class Semantic{
 		}
 		if(getErrorFlag()) return;
 
+		// Late declared not empty means some classes inherit from undefined classes
 		lateDeclared.removeAll(Arrays.asList("","IO","Object"));
 		if(!lateDeclared.isEmpty()){
 			for(String clpar: lateDeclared){
@@ -94,47 +97,75 @@ public class Semantic{
 		if(!checkCycles()) return;
 		if(!allClsNames.contains("Main")){
 			reportError("", 0, "Class Main is not found");
-			return;
 		}
+		boolean f1 = false;
+		for(AST.method m: classMap.get("Main").methods)
+			if(m.name.equals("main")) f1=true;
+		if(!f1) reportError(classMap.get("Main").filename, classMap.get("Main").lineNo, "Class Main doesn't contain main method\n");
 
-		//allClsNames.removeAll(Arrays.asList("IO","Object"));
 		classMap.put("Int",Int);
 		classMap.put("Bool",Bool);
 		classMap.put("String",String);
+		IO.addParFeats(Object.methods, Object.attrs, classMap, scopeTable, depths);
+		String.addParFeats(Object.methods, Object.attrs, classMap, scopeTable, depths);
+		Int.addParFeats(Object.methods, Object.attrs, classMap, scopeTable, depths);
+		Bool.addParFeats(Object.methods, Object.attrs, classMap, scopeTable, depths);
+
+		// Checking for inheritance errors -> Errors while adding inherited features
 		for(String cln: allClsNames){
 			if((Arrays.asList("IO","Object")).contains(cln)) continue;
 			AST.class_ cl = classMap.get(cln), cpl = classMap.get(cl.parent);
 			String err = "";
+			ArrayList<AST.method> arr1 = new ArrayList<AST.method>();
+			ArrayList<AST.attr> arr2 = new ArrayList<AST.attr>();
+			arr1.addAll(cpl.methods);
+			if(cpl.methods != null) arr1.addAll(cpl.parMethods);
+			arr2.addAll(cpl.attrs);
+			if(cpl.methods != null) arr2.addAll(cpl.parAttrs);
+			err += cl.addParFeats(arr1, arr2, classMap, scopeTable, depths);
 			if(!err.equals("")) {System.out.print(err);errorFlag=true;}
-			err = "";
-			err += cl.addParFeats(cpl.methods, cpl.attrs);
-			err += cl.getErrDecl(classMap);
-			if(!err.equals("")) {System.out.print(err);errorFlag=true;}
+		}
+
+		// Checking for errors in method bodies
+		for(String cln: allClsNames){
+			if((Arrays.asList("IO","Object")).contains(cln)) continue;
+			AST.class_ cl = classMap.get(cln);
+			String err = "";
 			scopeTable.insert(cl.name, (AST.ASTNode) cl);
 			scopeTable.enterScope();
 			scopeTable.insert("self", (AST.ASTNode) cl);
-			for(AST.attr a: cl.attrs)  scopeTable.insert(a.name, (AST.ASTNode) a);
-			String errbody = "";
-			for(AST.attr a: cl.attrs)  errbody += a.setType(cl.filename, scopeTable, classMap, depths);
-			for(AST.method m: cl.methods){
-				//errbody = "";
-				scopeTable.insert(m.name, (AST.ASTNode) m);
+			// Attributes and inherited attributes are added into scopetable
+			for(AST.attr cms: cl.parAttrs) scopeTable.insert(cms.name, (AST.ASTNode) cms);
+			for(AST.attr a: cl.attrs) {err += a.setType(cl.filename, scopeTable, classMap, depths);scopeTable.insert(a.name, (AST.ASTNode) a);}
+			for(AST.method cms: cl.methods){
+				scopeTable.insert(cms.name, (AST.ASTNode) cms);
 				scopeTable.enterScope();
-				for(AST.formal f: m.formals) scopeTable.insert(f.name, (AST.ASTNode) f);
-				errbody += m.body.setType(cl.filename,scopeTable, classMap, depths);
-				if(!m.body.type.equals("_no_type") && (!AST.expression.isAncestor(m.body.type, m.typeid, classMap) || (m.typeid.equals("SELF_TYPE") && !AST.expression.isAncestor(m.body.type, m.typeid, classMap)) || (m.body.type.equals("SELF_TYPE") && !AST.expression.isAncestor(m.name, m.typeid, classMap)))) reportError(cl.filename, m.lineNo, "In the definition of " + m.name + " inferred return type "+m.body.type+" does not conform to the declared return type "+m.typeid+"\n");
+				for(AST.formal f: cms.formals) scopeTable.insert(f.name, (AST.ASTNode) f);
+				err += cms.body.setType(cl.filename,scopeTable, classMap, depths);
+
+				// Body can return any child class of declared return type
+				//Return error only if declared return type and inferred return type are of defined classes because in other cases they will be reported at their origins already
+				if(!cms.body.type.equals("_no_type") && ((classMap.containsKey(cms.body.type) && classMap.containsKey(cms.typeid) && !AST.expression.isAncestor(cms.body.type, cms.typeid, classMap)) || (classMap.containsKey(cms.body.type) && cms.typeid.equals("SELF_TYPE") && !AST.expression.isAncestor(cms.body.type, cms.typeid, classMap)) || (cms.body.type.equals("SELF_TYPE") && !AST.expression.isAncestor(cl.name, cms.typeid, classMap)))) err += (cl.filename + ":" + cms.lineNo + ": In the definition of " + cms.name + " inferred return type "+cms.body.type+" does not conform to the declared return type "+cms.typeid+"\n");
 				scopeTable.exitScope();
 			}
-			if(!errbody.equals("")) {System.out.print(errbody); errorFlag = true;}
+			// Checking for methods with inheritance errors also
+			for(AST.method cms: cl.delMethds){
+				scopeTable.insert(cms.name, (AST.ASTNode) cms);
+				scopeTable.enterScope();
+				for(AST.formal f: cms.formals) scopeTable.insert(f.name, (AST.ASTNode) f);
+				err += cms.body.setType(cl.filename,scopeTable, classMap, depths);
+				if(!cms.body.type.equals("_no_type") && ((classMap.containsKey(cms.body.type) && classMap.containsKey(cms.typeid) && !AST.expression.isAncestor(cms.body.type, cms.typeid, classMap)) || (classMap.containsKey(cms.body.type) && cms.typeid.equals("SELF_TYPE") && !AST.expression.isAncestor(cms.body.type, cms.typeid, classMap)) || (cms.body.type.equals("SELF_TYPE") && !AST.expression.isAncestor(cl.name, cms.typeid, classMap)))) err += (cl.filename + ":" + cms.lineNo + ": In the definition of " + cms.name + " inferred return type "+cms.body.type+" does not conform to the declared return type "+cms.typeid+"\n");
+				scopeTable.exitScope();
+			}
+			if(!err.equals("")) {System.out.print(err);errorFlag=true;}
 			scopeTable.exitScope();
-			//errorFlag = true;
 		}
 	}
 
 	private boolean checkCycles(){
 		Queue<String> bfsQueue = new LinkedList<String>();
 		ArrayList<String> orderCls = new ArrayList<String>();
-		HashMap<String, Boolean> isDone = new HashMap<String,Boolean>();
+		HashMap<String, Boolean> isDone = new HashMap<String,Boolean>();// Track of visited nodes
 		for(String clname: allClsNames) isDone.put(clname, false);
 		int total = allClsNames.size();
 		bfsQueue.addAll(Arrays.asList("IO","Object"));

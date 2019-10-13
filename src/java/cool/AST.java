@@ -36,9 +36,17 @@ public class AST{
 		String getString(String space){
 			return "";
 		};
+		/**
+		 * 	Will be implemented in all child classes to set 'type' attribute accordingly
+		**/
 		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap, HashMap<String,Integer> dMap){
 			return ("****Not Implemented****\n");
 		}
+
+		/**
+		 * 	Connection from objects to class is seen as singly linked list, move to equal distance from "Object" class,
+		 * 	and parallely move both pointers towards Object until they are same
+		**/
 		public static String join(String a, String b, HashMap<String,class_> cMap, HashMap<String, Integer> dMap){
 			//System.out.println(a+b);
 			if(!cMap.containsKey(a)||!cMap.containsKey(b)) return "Object";
@@ -56,6 +64,10 @@ public class AST{
 			}
 			return a;
 		}
+
+		/** 
+		 * 	Checks if 2nd argument is a ancestor of 1st argument
+		**/
 		public static boolean isAncestor(String a, String b, HashMap<String, class_> cMap){
 			if(b.equals("Object")) return true;
 			if(!cMap.containsKey(a) || !cMap.containsKey(b)) return false;
@@ -132,6 +144,7 @@ public class AST{
 		}
 		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap, HashMap<String,Integer> dMap){
 			//System.out.println("searching "+name);
+			/* We might check a object of following cases in scopetable */
 			ASTNode o = st.lookUpGlobal(name);
 			if(o==null) return sp+":"+lineNo+": Undeclared identifier "+name+"\n";
 			else if(o instanceof attr)type = ((attr)o).typeid;
@@ -357,6 +370,7 @@ public class AST{
 			object o = new object(name, lineNo);
 			err += o.setType(sp, st, cMap, dMap);
 			type = e1.type;
+			/* We can assign a object to any of its ancestor class object */
 			if(!expression.isAncestor(type, o.type, cMap)) err += sp+":"+lineNo+": Illegal assignment of type "+type+" to variable of type "+o.type+"\n";
 			return err;
 		}
@@ -424,7 +438,6 @@ public class AST{
 			err += ifbody.setType(sp, st, cMap, dMap);
 			err += elsebody.setType(sp, st, cMap, dMap);
 			type = expression.join(ifbody.type, elsebody.type,cMap,dMap);
-			//System.out.println("join-",expression.join(""));
 			return err;
 		}
 	}
@@ -448,7 +461,6 @@ public class AST{
 			object o = new object(name, lineNo);
 			st.enterScope();
 			st.insert(name,o);
-			//o.setType(sp, st, cMap);
 			if(!cMap.containsKey(typeid)){ err += sp+":"+lineNo+": Unknown type "+typeid+" for 'let' variable\n";o.type="Object";}
 			else{
 				o.type = typeid;
@@ -456,7 +468,6 @@ public class AST{
 				if(!expression.isAncestor(value.type, typeid, cMap) && !value.type.equals("_no_type")) err += sp+":"+lineNo+": Invalid initialization of identifier "+name+" of type "+typeid+" with "+value.type+" type\n";
 			}
 			err += body.setType(sp, st, cMap, dMap);
-			//System.out.println("xxx  "+st.lookUpGlobal(name));
 			st.exitScope();
 			type = body.type;
 			return err;
@@ -486,27 +497,29 @@ public class AST{
 			err = err.concat(caller.setType(sp,st,cMap, dMap));
 			for ( expression e1 : actuals ) err = err.concat(e1.setType(sp,st,cMap, dMap));	
 			for ( expression e1 : actuals ) if(e1.type == "_no_type") e1.type = "Object";
-			//System.out.println("claeer type: "+caller.type);
+			/* Any errors while assigning type to actuals and caller are returned here */
 			if(!err.equals("")) return err;
 			class_ callerClass = cMap.get(caller.type);
 			int found=0;
 			if(callerClass != null){
-				List<method> arr1=new ArrayList<method>();
+				ArrayList<method> arr1=new ArrayList<method>();
 				arr1.addAll(callerClass.methods);
 				if(callerClass.parMethods != null) arr1.addAll(callerClass.parMethods);
+				/* Checking for the method in both caller class's methods and inherited methods */
 				for(method m: arr1){
 					if(m.name.equals(name)){
 						found=1;
-						//if(!m.getErrDecl(sp, cMap).equals("")) return err;
-						if(m.formals.size() != actuals.size()) {err += sp+lineNo+": Dispatch with wrong number of arguments\n";found=2;}
+						if(m.formals.size() != actuals.size()) {err += sp+":"+lineNo+": Dispatch with wrong number of arguments\n";found=2;}
 						else {
 							for(int i=0;i<m.formals.size();i++){
-								if(!expression.isAncestor(actuals.get(i).type, m.formals.get(i).typeid, cMap)) {
+								/* Checking for errors during function call, ignoring if formal has unknown type error */
+								if(!expression.isAncestor(actuals.get(i).type, m.formals.get(i).typeid, cMap) && cMap.containsKey(actuals.get(i).type) && cMap.containsKey(m.formals.get(i).typeid)) {
 									err = err.concat(sp+":"+lineNo+": In call of method "+m.name+" passed argument of type "+actuals.get(i).type+" does not conform to declared type "+m.formals.get(i).typeid +" of argument "+m.formals.get(i).name+"\n");
 									found = 2;
 								}
 							}
 						}
+						/* If there is no error in calling function */
 						if(found==1){
 							if(m.typeid == "SELF_TYPE") type = caller.type;
 							else type = m.typeid;
@@ -516,8 +529,9 @@ public class AST{
 					}
 				}
 			}
+			/* Method not found */
 			if(found==0) {
-				err = err.concat(sp+lineNo+": Calling Unknown function "+name+" through dispatch\n");
+				err = err.concat(sp+":"+lineNo+": Calling Unknown function "+name+" through dispatch\n");
 				type = "Object";
 			}
 
@@ -550,10 +564,11 @@ public class AST{
 			err += (caller.setType(sp,st,cMap, dMap));
 			for ( expression e1 : actuals ) err += (e1.setType(sp,st,cMap, dMap));	
 			for ( expression e1 : actuals ) if(e1.type == "_no_type") e1.type = "Object";
-			//System.out.println("claeer type: "+caller.type);
 			class_ callerClass = cMap.get(typeid);
 			String calName = caller.type;
+			/* Checking if typeid exists */
 			if(!cMap.containsKey(typeid)) {err += sp+":"+lineNo+": Static dispatch to undefined class "+typeid+"\n";type="Object";return err;}
+			/* Checking if typeid is related to caller class */
 			else if(!expression.isAncestor(calName, typeid, cMap)){
 				err += (sp+":"+lineNo+": Static dispatch to unrelated class "+callerClass.name+"\n");
 			}
@@ -562,30 +577,33 @@ public class AST{
 				List<method> arr1=new ArrayList<method>();
 				arr1.addAll(callerClass.methods);
 				if(callerClass.parMethods != null) arr1.addAll(callerClass.parMethods);
+				/* Checking for the method in both typeid class's methods and inherited methods */
 				for(method m: arr1){
 					if(m.name.equals(name)){
-						//if(!m.getErrDecl(sp, cMap).equals("")) return err;
 						found=1;
-						if(m.formals.size() != actuals.size()) {err += sp+lineNo+": Static dispatch with wrong number of arguments\n";found=2;}
+						if(m.formals.size() != actuals.size()) {err += sp+":"+lineNo+": Static dispatch with wrong number of arguments\n";found=2;}
 						else {
 							for(int i=0;i<m.formals.size();i++){
-								if(!expression.isAncestor(actuals.get(i).type, m.formals.get(i).typeid, cMap)) {
+								/* Checking for errors during function call, ignoring if formal has unknown type error */
+								if(!expression.isAncestor(actuals.get(i).type, m.formals.get(i).typeid, cMap) && cMap.containsKey(actuals.get(i).type) && cMap.containsKey(m.formals.get(i).typeid)) {
 									err += (sp+":"+lineNo+": In call of method "+m.name+" passed argument of type "+actuals.get(i).type+" does not conform to declared type "+m.formals.get(i).typeid +" of argument "+m.formals.get(i).name+"\n");
 									found = 2;
 								}
 							}
 						}
+						/* If there is no error in calling function */
 						if(found==1){
-							if(m.typeid == "SELF_TYPE") type = caller.type;
-							else type = m.typeid;
+							if(m.typeid == "SELF_TYPE") type = typeid;
+							else if(cMap.containsKey(m.typeid)) type = m.typeid;
 							return err;
 						}
 						break;
 					}
 				}
 			}
+			/* Method not found */
 			if(found==0) {
-				err = err.concat(sp+lineNo+": Calling Unknown function "+name+" through static dispatch\n");
+				err = err.concat(sp+":"+lineNo+": Calling Unknown function "+name+" through static dispatch\n");
 				type = "Object";
 			}
 			return err;
@@ -650,6 +668,11 @@ public class AST{
 			typeid = t;
 			lineNo = l;
 		}
+
+		/* Compares two formals for error
+		*	Return "\n" if typeid match
+		* 	Returns error message otherwise
+		*/
 		public static String getErr(formal f1, formal f2){
 			if(f1.typeid.equals(f2.typeid))return "";
 			else return f1.lineNo+": Type "+f1.typeid+" of parameter "+f1.name+" is different from the type " +f2.typeid+" declared in a ancestor\n";
@@ -659,6 +682,8 @@ public class AST{
 		}
 	}
 	public static class feature extends ASTNode {
+		// Updated to contain name and typeid fields
+		// typeid of a class is equal to its name
 		public String name;
 		public String typeid;
 		public feature(){
@@ -678,19 +703,29 @@ public class AST{
 			body = b;
 			lineNo = l;
 		}
+
+		/* Returns errors in declaring undefined return types and formal types, duplicate formal names */
 		public String getErrDecl(String sp, HashMap<String,class_> cMap){
 			ArrayList<String> fname = new ArrayList<String>();
 			String err = "";
-				if(!cMap.containsKey(typeid)) err += sp+":"+lineNo+": Unknown return type for "+typeid+" method "+name+"\n";
+			if(!typeid.equals("SELF_TYPE") && !cMap.containsKey(typeid)) err += sp+":"+lineNo+": Unknown return type for "+typeid+" method "+name+"\n";
 			for(formal f: formals){
-				if(!cMap.containsKey(f.typeid)){ err += sp+":"+lineNo+": Unknown type "+f.typeid+" for formal variable "+f.name+"\n"; f.typeid = "Object";}
+				if(!cMap.containsKey(f.typeid)){ err += sp+":"+lineNo+": Unknown type "+f.typeid+" for formal variable "+f.name+"\n";}
 				if(fname.contains(f.name)) err += sp+":"+lineNo+": Formal name "+f.name+" is already used\n";
 				fname.add(f.name);
+				//System.out.println("-"+f.name);
 			}
 			return err;
 		}
+
+		/* Compares two functions
+		*	Names are not equal then they are not related
+		*	Names are equal but unequal no. of formals or corresponding formal types not matching shld return error
+		* 	If everything matches return "\n"
+		*/
 		public static String getErr(method m1, method m2, String pre){
 			if(!m1.name.equals(m2.name)) return "";
+			else if(!m1.typeid.equals(m2.typeid)) return pre+":"+m1.lineNo+": In redefintion of method "+m1.name+" return types do not match\n";
 			else if(m1.formals.size() != m2.formals.size()) return pre+":"+m1.lineNo+": Different number of parameters in redefinition of inherited function\n";
 			else{
 				String err = "";
@@ -719,6 +754,11 @@ public class AST{
 			value = v;
 			lineNo = l;
 		}
+
+		/* 	Is called only between two related classes
+		*	If names dont match then they are not related
+		*	but if they match it is a redefinition so return error		
+		*/
 		public static String getErr(attr a1, attr a2, String pre){
 			if(!a1.name.equals(a2.name)) return "";
 			else return pre+":"+a1.lineNo+": Attribute "+a1.name+" is already an attribute of an inherited class\n";
@@ -737,106 +777,104 @@ public class AST{
 		public String name;
 		public String filename;
 		public String parent;
-		public ArrayList<method> methods, parMethods;
+		//delMthds is for methods with error, they are stored to check for errors in their body too
+		public ArrayList<method> methods, parMethods, delMethds;
 		public ArrayList<attr> attrs, parAttrs;
 		//public List<feature> features;
+
+		/* Is updated to save attributes and methods separately */
 		public class_(String n, String f, String p, List<feature> fs, int l){
 			name = n;
 			filename = f;
 			parent = p;
 			//features = fs;
 			attrs = new ArrayList<attr>();
+			/* Inherited attributes */
+			parAttrs = new ArrayList<attr>();
 			methods = new ArrayList<method>();
+			/* Inherited methods */
+			parMethods = new ArrayList<method>();
 			for(feature f1: fs){
 				if(f1 instanceof method) methods.add((method) f1);
 				else if(f1 instanceof attr) attrs.add((attr) f1);
 			}
 			lineNo = l;
 		}
-		public String getErrDecl(HashMap<String,class_> cMap){
-			ArrayList<String> fname = new ArrayList<String>();
-			ArrayList<method> delBuff = new ArrayList<method>();
-			String err = "";
-			for(method m: methods){
-				//System.out.println("asd"+err+"\n");
-				if(fname.contains(m.name)){
-					err = err.concat(filename+":"+m.lineNo+": Class already contains definition of method with name "+m.name+" \n");
-					//methods.remove(m);
-					err += m.getErrDecl(filename, cMap);
-					delBuff.add(m);
-				}
-				else{
-					err += m.getErrDecl(filename, cMap);
-					fname.add(m.name);
-				}
-			}
-			methods.removeAll(delBuff);
-			fname.clear();
-			delBuff.clear();
-			ArrayList<attr> delBuffA = new ArrayList<attr>();
-			for(attr m: attrs){
-				if(!cMap.containsKey(m.typeid)) {err += filename+":"+m.lineNo+": Unknown type "+m.typeid+" for attribute "+m.name+"\n";m.typeid="Object";}
-				else if(fname.contains(m.name)){
-					err += filename+":"+m.lineNo+": Class already contains definition of attribute with name "+m.name+" \n";
-					//attrs.remove(m);
-					delBuffA.add(m);
-				}
-				else{
-					//err += m.getErrDecl(name);
-					fname.add(m.name);
-				}
-			}
-			attrs.removeAll(delBuffA);
-			return err;
-		}
 
-		public String addParFeats(List<method> parm, List<attr> para){
+		/* Takes inherited features as arguments and checks for inheritance errors
+		*/
+		public String addParFeats(List<method> parm, List<attr> para, HashMap<String,class_> cMap, ScopeTable<ASTNode> scopeTable, HashMap<String,Integer> depths){
 			String err = "";
-			ArrayList<method> presms = new ArrayList<method>();
-			ArrayList<attr> presas = new ArrayList<attr>();
-			for(attr pms: para){
-				//System.out.println("yyy--"+pms.name);
-				attr rem = new attr("", "", new expression(), 0);
-				for(attr cms: attrs){
+			ArrayList<method> delBufferM = new ArrayList<method>();
+			ArrayList<attr> delBuffA = new ArrayList<attr>();
+			ArrayList<String> fname = new ArrayList<String>();
+			for(attr cms: attrs){
+				err += cms.setType(filename, scopeTable, cMap, depths);
+				boolean found = false;
+				for(attr pms: para){
 					String smerr = attr.getErr(cms, pms, filename);
-					//System.out.println("yy--"+cms.name);
 					if(!smerr.equals("")){
-						//attrs.remove(cms);
-						//System.out.println(smerr);
-						rem = cms;
+						// Attribute defined in an ancestor
 						err = err.concat(smerr);
+						found = true;
 					}
 				}
-				attrs.remove(rem);
-				presas.add(pms);
-			}	
-			//attrs.addAll(presas);	
-			parAttrs = presas;	
-			for(method pms: parm){
-				method rem = new method("", new ArrayList<formal>(Arrays.asList(new formal("", "", 0))), "", new expression(), 0);
-				for(method cms: methods){
+				if(!found){
+					// Newly defined
+					if(!cMap.containsKey(cms.typeid)){
+						err += filename+":"+cms.lineNo+": Unknown type "+cms.typeid+" for attribute "+cms.name+"\n";
+						fname.add(cms.name);
+					}
+					else if(fname.contains(cms.name)){
+						err += filename+":"+cms.lineNo+": Class already contains definition of attribute with name "+cms.name+" \n";
+						//attrs.remove(m);
+						delBuffA.add(cms);
+					}
+					else{
+						// Keeping track of all new attributes to check for duplicate definitions in same class
+						fname.add(cms.name);
+					}
+				}
+				else{
+					// Deleting attributes with error
+					// Attributes with undefined types are deleted for error handling
+					delBuffA.add(cms);
+				}
+			}	 
+			parAttrs.addAll((ArrayList<attr>) para);
+			attrs.removeAll(delBuffA);
+			fname.clear();	
+			// Checking for inheritance and declaration errors in methods
+			for(method cms: methods){
+				if(fname.contains(cms.name)){
+					err = err.concat(filename+":"+cms.lineNo+": Class already contains definition of method with name "+cms.name+" \n");
+					err += cms.getErrDecl(filename, cMap);
+					delBufferM.add(cms);// Has error in it so it is ready to be deleted
+				}
+				else{
+					err += cms.getErrDecl(filename, cMap);
+					fname.add(cms.name);
+				}
+				// Checking only for inheritance errors
+				for(method pms: parm){
 					String smerr = method.getErr(cms, pms, filename);
 					if(smerr.equals("\n")){
-						//methods.remove(cms);
-						rem = cms;
-						presms.add(cms);
-						break;
+						// Correctly overrides a inherited method
 					}
 					else if(!smerr.equals("")){
-						//methods.remove(cms);
-						presms.add(pms);
+						// Error in overriding
+						delBufferM.add(cms);
 						err = err.concat(smerr);
-						rem = cms;
+						parMethods.add(pms); // Actual parent's method is added
 					}
 				}
-				if(rem.name.equals("")) presms.add(pms);
-				methods.remove(rem);
 			}
-			//methods.addAll(presms);
-			parMethods = presms;
+			methods.removeAll(delBufferM);
+			delMethds = delBufferM; // All methods with errors are added here to check for errors in body later
 			return err;
 		}
 
+		/* Has been updated to print attributes and methods */
 		String getString(String space){
 			String str;
 			str = space+"#"+lineNo+"\n"+space+"_class\n"+space+sp+name+"\n"+space+sp+parent+"\n"+space+sp+"\""+filename+"\""+"\n"+space+sp+"(\n";

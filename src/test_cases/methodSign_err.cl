@@ -1,6 +1,6 @@
 class Main {
 	i:Maisn1 <- new Maisn1;
-	main():IO {
+	mains():IO {
 		i.out_strings("Hello world!\n",0)
 	};
 };

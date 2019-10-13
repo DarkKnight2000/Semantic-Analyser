@@ -8,11 +8,6 @@ class Main {
 	i8:IO <- new IO;
 	main():IO {
 		i8.out_string(i)
-		--{new Bool;new Bool;}
-		--while true loop new Bool pool
-		--if i1 then new Int else new Int fi
-		--let i5:Int <- 0 in i8.out_int(i5)
-		--i22@Maisn1.out_strings(i7)
 	};
 };
 
