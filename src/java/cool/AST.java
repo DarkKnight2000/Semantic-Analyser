@@ -185,7 +185,8 @@ public class AST{
 		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap, HashMap<String,Integer> dMap){
 			String err = e1.setType(sp, st, cMap, dMap);
 			err += e2.setType(sp, st, cMap, dMap);
-			if(!expression.isAncestor(e1.type, e2.type, cMap) && !expression.isAncestor(e2.type, e1.type, cMap)) err += sp+":"+lineNo+": Illegal comparision between types "+e1.type+" and "+e2.type+"\n";
+			ArrayList<String> baseCls = new ArrayList<String>(Arrays.asList("Int","String","Bool"));
+			if((baseCls.contains(e1.type)&&!e1.type.equals(e2.type)) || (!baseCls.contains(e1.type)&&baseCls.contains(e2.type))) err += sp+":"+lineNo+": Illegal comparision between types "+e1.type+" and "+e2.type+"\n";
 			type = "Bool";
 			return err;
 		}
@@ -682,8 +683,7 @@ public class AST{
 		}
 	}
 	public static class feature extends ASTNode {
-		// Updated to contain name and typeid fields
-		// typeid of a class is equal to its name
+		// Updated to contain name and typeid fields as they are common to all feature children
 		public String name;
 		public String typeid;
 		public feature(){
@@ -719,13 +719,13 @@ public class AST{
 		}
 
 		/* Compares two functions
-		*	Names are not equal then they are not related
+		*	Names are not equal then they are not related, return ""
 		*	Names are equal but unequal no. of formals or corresponding formal types not matching shld return error
 		* 	If everything matches return "\n"
 		*/
 		public static String getErr(method m1, method m2, String pre){
 			if(!m1.name.equals(m2.name)) return "";
-			else if(!m1.typeid.equals(m2.typeid)) return pre+":"+m1.lineNo+": In redefintion of method "+m1.name+" return types do not match\n";
+			else if(!m1.typeid.equals(m2.typeid)) return pre+":"+m1.lineNo+": In redefintion of method "+m1.name+" new return type "+m1.typeid+" does not match with declared return type "+m2.typeid+" in an ancestor\n";
 			else if(m1.formals.size() != m2.formals.size()) return pre+":"+m1.lineNo+": Different number of parameters in redefinition of inherited function\n";
 			else{
 				String err = "";
@@ -807,7 +807,7 @@ public class AST{
 			String err = "";
 			ArrayList<method> delBufferM = new ArrayList<method>();
 			ArrayList<attr> delBuffA = new ArrayList<attr>();
-			ArrayList<String> fname = new ArrayList<String>();
+			ArrayList<String> fname = new ArrayList<String>(); // Contains names of newly defined 'valid' features only
 			for(attr cms: attrs){
 				err += cms.setType(filename, scopeTable, cMap, depths);
 				boolean found = false;
@@ -844,11 +844,12 @@ public class AST{
 			parAttrs.addAll((ArrayList<attr>) para);
 			attrs.removeAll(delBuffA);
 			fname.clear();	
+			ArrayList<method> delOverriden = new ArrayList<method>();
 			// Checking for inheritance and declaration errors in methods
 			for(method cms: methods){
 				if(fname.contains(cms.name)){
 					err = err.concat(filename+":"+cms.lineNo+": Class already contains definition of method with name "+cms.name+" \n");
-					err += cms.getErrDecl(filename, cMap);
+					//err += cms.getErrDecl(filename, cMap);
 					delBufferM.add(cms);// Has error in it so it is ready to be deleted
 				}
 				else{
@@ -860,15 +861,20 @@ public class AST{
 					String smerr = method.getErr(cms, pms, filename);
 					if(smerr.equals("\n")){
 						// Correctly overrides a inherited method
+						delOverriden.add(pms);
 					}
 					else if(!smerr.equals("")){
 						// Error in overriding
 						delBufferM.add(cms);
 						err = err.concat(smerr);
-						parMethods.add(pms); // Actual parent's method is added
+						parMethods.add(pms); // Actual parent's method is added as override failed and its definition is a feature now
+						delOverriden.add(pms);
+						fname.remove(cms.name); // Remove this from newly defined methods as it has error in it
 					}
 				}
 			}
+			parm.removeAll(delOverriden);
+			parMethods.addAll(parm);
 			methods.removeAll(delBufferM);
 			delMethds = delBufferM; // All methods with errors are added here to check for errors in body later
 			return err;

@@ -96,12 +96,14 @@ public class Semantic{
 
 		if(!checkCycles()) return;
 		if(!allClsNames.contains("Main")){
-			reportError("", 0, "Class Main is not found");
+			reportError("", 0, "Class Main is not found\n");
 		}
-		boolean f1 = false;
-		for(AST.method m: classMap.get("Main").methods)
-			if(m.name.equals("main")) f1=true;
-		if(!f1) reportError(classMap.get("Main").filename, classMap.get("Main").lineNo, "Class Main doesn't contain main method\n");
+		else{
+			boolean f1 = false;
+			for(AST.method m: classMap.get("Main").methods)
+				if(m.name.equals("main")) f1=true;
+			if(!f1) reportError(classMap.get("Main").filename, classMap.get("Main").lineNo, "Class Main doesn't contain main method\n");
+		}
 
 		classMap.put("Int",Int);
 		classMap.put("Bool",Bool);

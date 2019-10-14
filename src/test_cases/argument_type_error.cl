@@ -1,3 +1,8 @@
+-- Method call using wrong argument types
+-- That method is wrongly overriden in a child class,
+-- checking which implementation is in play
+-- Shouldnt give a error if child class override is considered
+
 class Main {
 	i:String <- new String;
 	i1:Bool <- false;
@@ -6,12 +11,7 @@ class Main {
 	i7:Int <- new Int;
 	i8:IO <- new IO;
 	main():IO {
-		--i1.out_string("Hello world!\n")
-		--{new Bool;new Bool;}
-		--while true loop new Bool pool
-		--if i1 then new Int else new Int fi
-		--let i5:Int <- 0 in i8.out_int(i5)
-		i2@Maisn1.out_strings(i7,i)
+		i2.out_strings(i7,i)
 	};
 };
 

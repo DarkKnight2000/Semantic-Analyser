@@ -18,7 +18,7 @@
 5.1. Check for inheritance errors( like declaring attributes of a parent class or changing parameter/return types of parent class methods). We achieve this by using the function addParFeats. This function returns all the error messages in a string variable. In the function first we check for redefinition of attributes(Attributes shouldn't be redfined). Then we check if there is a redefinition of a method and compare their parameter types and return types. For this we use getErr(), a static function of the AST.method class which returns an error message for redefined methods. This function takes two AST.method objects as input and returns the following values for each respective case:
     > If the method names are not same return "" (because they are unrelated)
     > If return types donot match return corresponding error
-    > If the names are same then we check if corresponding formal types are same (this is done by static method getErr is AST.formal class), if not return an error msg (!= "" && != "\n")
+    > If the names are same then we check if corresponding formal types are same (this is done by static method getErr is AST.formal class), if not return an error msg (we know that err msg != "" && err msg != "\n")
     > If all formal types match between two methods and their return types are same, return "\n"
 
     We get a different return value for each case and use if-else statements to check for the case. If returned value is equal to "\n" then both methods have same signature, so there is no need to report error. If there is an error we store in a buffer( delBuffer ) to delete them at the end. All the parents attributes and methods are stored in parAttrs and parMethods respectively. This helps to check for dispatch calls to these methods etc,.
@@ -39,9 +39,9 @@
 
 5.9. Static dispatch was also the same but it included an extrastep, checking if typeid is an ancestor of the caller. This was achieved by isAncestor, static function in expression.
 
-5.10. If-else and typcase needed least common ancestor of two classes. So we created a static function "join" to get it. This function uses depths of classes. The ancestors of class form a singly linked list, so the problem is reduced to finding starting point of common part between two singly linked lists.
+5.10. If-else and typcase needed least common ancestor of two classes. So we created a static function "join" to get it. This function uses depths of classes. The ancestors of class form a singly linked list( As cool supports only single inheritance, it is a linked list because a class contains name of parent which can be taken as pointer ), so the problem is reduced to finding starting point of common part between two singly linked lists.
 
 
 6. We used the test cases to see that a function can return any child class object of the declared return type. A dispatch is valid even if a child class object  of original formal type is passed. Name of formal doesnt need to be same while redefining.
 
-7. We passed the filename of class to add it into errors in subsequent calls of setType inside method body and make the errors informative.
+7. We passed the filename of class as argument to all error returning methods, to add it into errors in subsequent calls of setType inside method body and make the errors informative.

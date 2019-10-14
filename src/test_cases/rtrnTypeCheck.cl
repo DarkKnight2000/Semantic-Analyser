@@ -1,3 +1,5 @@
+-- Returning a child class of declared return type shouldnt give an error
+
 class Main {
 	i:String <- new String;
 	i1:Bool <- false;
