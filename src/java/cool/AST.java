@@ -86,6 +86,7 @@ public class AST{
 			return space+"#"+lineNo+"\n"+space+"_no_expr\n"+space+": "+type;
 		}
 		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap, HashMap<String,Integer> dMap){
+			type = "No_type";
 			return "";
 		}
 	}
@@ -146,7 +147,7 @@ public class AST{
 			//System.out.println("searching "+name);
 			/* We might check a object of following cases in scopetable */
 			ASTNode o = st.lookUpGlobal(name);
-			if(o==null) return sp+":"+lineNo+": Undeclared identifier "+name+"\n";
+			if(o==null) {type="Object";return sp+":"+lineNo+": Undeclared identifier "+name+"\n";}
 			else if(o instanceof attr)type = ((attr)o).typeid;
 			else if(o instanceof formal)type = ((formal)o).typeid;
 			else if(o instanceof object) type = ((object)o).type;
@@ -455,18 +456,19 @@ public class AST{
 			lineNo = l;
 		}
 		String getString(String space){
-			return space+"#"+lineNo+"\n"+space+"_let\n"+space+sp+name+"\n"+space+sp+typeid+"\nval\n"+value.getString(space+sp)+"\nbody\n"+body.getString(space+sp)+"\n"+space+": "+type;
+			return space+"#"+lineNo+"\n"+space+"_let\n"+space+sp+name+"\n"+space+sp+typeid+"\n"+value.getString(space+sp)+"\n"+body.getString(space+sp)+"\n"+space+": "+type;
 		}
 		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap, HashMap<String,Integer> dMap){
 			String err = "";
 			object o = new object(name, lineNo);
 			st.enterScope();
 			st.insert(name,o);
-			if(!cMap.containsKey(typeid)){ err += sp+":"+lineNo+": Unknown type "+typeid+" for 'let' variable\n";o.type="Object";}
-			else{
+			if(!cMap.containsKey(typeid)){ err += sp+":"+lineNo+": Unknown type "+typeid+" for 'let-bound' variable\n";o.type="Object";}
+			else {
 				o.type = typeid;
+				if(value instanceof no_expr) value = new new_(typeid,lineNo);
 				err += value.setType(sp, st, cMap, dMap);
-				if(!expression.isAncestor(value.type, typeid, cMap) && !value.type.equals("_no_type")) err += sp+":"+lineNo+": Invalid initialization of identifier "+name+" of type "+typeid+" with "+value.type+" type\n";
+				if(!expression.isAncestor(value.type, typeid, cMap)) err += sp+":"+lineNo+": Invalid initialization of identifier "+name+" of type "+typeid+" with "+value.type+" type\n";
 			}
 			err += body.setType(sp, st, cMap, dMap);
 			st.exitScope();
@@ -499,7 +501,6 @@ public class AST{
 			for ( expression e1 : actuals ) err = err.concat(e1.setType(sp,st,cMap, dMap));	
 			for ( expression e1 : actuals ) if(e1.type == "_no_type") e1.type = "Object";
 			/* Any errors while assigning type to actuals and caller are returned here */
-			if(!err.equals("")) return err;
 			class_ callerClass = cMap.get(caller.type);
 			int found=0;
 			if(callerClass != null){
@@ -572,6 +573,8 @@ public class AST{
 			/* Checking if typeid is related to caller class */
 			else if(!expression.isAncestor(calName, typeid, cMap)){
 				err += (sp+":"+lineNo+": Static dispatch to unrelated class "+callerClass.name+"\n");
+				type = "Object";
+				return err;
 			}
 			int found=0;
 			if(callerClass != null){
@@ -766,10 +769,12 @@ public class AST{
 		public String getString(String space){
 			return space+"#"+lineNo+"\n"+space+"_attr\n"+space+sp+name+"\n"+space+sp+typeid+"\n"+value.getString(space+sp);
 		}
+
+		//Checking if initialisation expr has same/child type as declared type of attr
 		String setType(String sp, ScopeTable<ASTNode> st, HashMap<String,class_> cMap, HashMap<String,Integer> dMap){
 			String err = value.setType(sp, st, cMap, dMap);
 			//System.out.println(value.type+"xxx"+typeid+"\n");
-			if(cMap.containsKey(typeid) && !expression.isAncestor(value.type, typeid, cMap) && !value.type.equals("_no_type")) err += sp+":"+lineNo+": Invalid intialization of attribute "+name+" of type "+typeid+" with type "+value.type+"\n";
+			if(cMap.containsKey(typeid) && !value.type.equals("_no_type") && !expression.isAncestor(value.type, typeid, cMap)) err += sp+":"+lineNo+": Invalid intialization of attribute "+name+" of type "+typeid+" with type "+value.type+"\n";
 			return err;
 		}
 	}
@@ -777,7 +782,7 @@ public class AST{
 		public String name;
 		public String filename;
 		public String parent;
-		//delMthds is for methods with error, they are stored to check for errors in their body too
+		//delMthds is for methods with error, they are stored to check for errors in their body expressions too
 		public ArrayList<method> methods, parMethods, delMethds;
 		public ArrayList<attr> attrs, parAttrs;
 		//public List<feature> features;
@@ -809,7 +814,7 @@ public class AST{
 			ArrayList<attr> delBuffA = new ArrayList<attr>();
 			ArrayList<String> fname = new ArrayList<String>(); // Contains names of newly defined 'valid' features only
 			for(attr cms: attrs){
-				err += cms.setType(filename, scopeTable, cMap, depths);
+				//err += cms.setType(filename, scopeTable, cMap, depths);
 				boolean found = false;
 				for(attr pms: para){
 					String smerr = attr.getErr(cms, pms, filename);

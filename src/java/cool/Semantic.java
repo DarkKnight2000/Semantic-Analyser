@@ -136,11 +136,11 @@ public class Semantic{
 			scopeTable.insert(cl.name, (AST.ASTNode) cl);
 			scopeTable.enterScope();
 			scopeTable.insert("self", (AST.ASTNode) cl);
-			// Attributes and inherited attributes are added into scopetable
+			// Attributes and inherited attributes are added into scopetable before setting types
 			for(AST.attr cms: cl.parAttrs) scopeTable.insert(cms.name, (AST.ASTNode) cms);
-			for(AST.attr a: cl.attrs) {err += a.setType(cl.filename, scopeTable, classMap, depths);scopeTable.insert(a.name, (AST.ASTNode) a);}
+			for(AST.attr cms: cl.attrs) {scopeTable.insert(cms.name, (AST.ASTNode) cms);}
+			// Methods are annotated 1st because attrs may use these functions as initialisation
 			for(AST.method cms: cl.methods){
-				scopeTable.insert(cms.name, (AST.ASTNode) cms);
 				scopeTable.enterScope();
 				for(AST.formal f: cms.formals) scopeTable.insert(f.name, (AST.ASTNode) f);
 				err += cms.body.setType(cl.filename,scopeTable, classMap, depths);
@@ -152,13 +152,14 @@ public class Semantic{
 			}
 			// Checking for methods with inheritance errors also
 			for(AST.method cms: cl.delMethds){
-				scopeTable.insert(cms.name, (AST.ASTNode) cms);
 				scopeTable.enterScope();
 				for(AST.formal f: cms.formals) scopeTable.insert(f.name, (AST.ASTNode) f);
 				err += cms.body.setType(cl.filename,scopeTable, classMap, depths);
 				if(!cms.body.type.equals("_no_type") && ((classMap.containsKey(cms.body.type) && classMap.containsKey(cms.typeid) && !AST.expression.isAncestor(cms.body.type, cms.typeid, classMap)) || (classMap.containsKey(cms.body.type) && cms.typeid.equals("SELF_TYPE") && !AST.expression.isAncestor(cms.body.type, cms.typeid, classMap)) || (cms.body.type.equals("SELF_TYPE") && !AST.expression.isAncestor(cl.name, cms.typeid, classMap)))) err += (cl.filename + ":" + cms.lineNo + ": In the definition of " + cms.name + " inferred return type "+cms.body.type+" does not conform to the declared return type "+cms.typeid+"\n");
 				scopeTable.exitScope();
 			}
+			// Checking for validity of initialisation of attrs
+			for(AST.attr a: cl.attrs) {err += a.setType(cl.filename, scopeTable, classMap, depths);}
 			if(!err.equals("")) {System.out.print(err);errorFlag=true;}
 			scopeTable.exitScope();
 		}

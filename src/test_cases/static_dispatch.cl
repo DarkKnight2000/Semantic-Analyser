@@ -24,7 +24,7 @@ class Maisn3 inherits IO{
 	};
 };
 
-class Maisn2 inherits Maisn1{
+class Maisn2{
 	--i:String <- new String;
 	out_strings(i:String,i1:String):IO {
 		new IO
